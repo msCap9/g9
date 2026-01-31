@@ -29,18 +29,26 @@ export function AuthProvider({ children }) {
         // Check saved session
         const savedUser = localStorage.getItem(SESSION_STORAGE_KEY);
         if (savedUser) {
-            setCurrentUser(JSON.parse(savedUser));
+            try {
+                setCurrentUser(JSON.parse(savedUser));
+            } catch (e) {
+                localStorage.removeItem(SESSION_STORAGE_KEY);
+            }
         }
         setIsLoading(false);
     }, []);
 
     const loadUsers = () => {
-        const stored = localStorage.getItem(USERS_STORAGE_KEY);
-        if (stored) {
-            setUsers(JSON.parse(stored));
-        } else {
-            // Initialize with default admin
-            localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
+        try {
+            const stored = localStorage.getItem(USERS_STORAGE_KEY);
+            if (stored) {
+                setUsers(JSON.parse(stored));
+            } else {
+                // Initialize with default admin
+                localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
+                setUsers(DEFAULT_USERS);
+            }
+        } catch (e) {
             setUsers(DEFAULT_USERS);
         }
     };
@@ -50,8 +58,10 @@ export function AuthProvider({ children }) {
         setUsers(newUsers);
     };
 
-    const login = (username, password) => {
-        const user = users.find(u => u.username === username && u.password === password);
+    const login = async (username, password) => {
+        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+        const usersList = storedUsers ? JSON.parse(storedUsers) : DEFAULT_USERS;
+        const user = usersList.find(u => u.username === username && u.password === password);
         if (user) {
             setCurrentUser(user);
             localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(user));
@@ -65,10 +75,13 @@ export function AuthProvider({ children }) {
         localStorage.removeItem(SESSION_STORAGE_KEY);
     };
 
-    const addUser = (userData) => {
+    const addUser = async (userData) => {
         if (currentUser?.role !== 'admin') return false;
 
-        const existingUser = users.find(u => u.username === userData.username);
+        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+        const usersList = storedUsers ? JSON.parse(storedUsers) : [];
+
+        const existingUser = usersList.find(u => u.username === userData.username);
         if (existingUser) return false;
 
         const avatar = getAvatarByRole(userData.role);
@@ -79,32 +92,38 @@ export function AuthProvider({ children }) {
             created_at: new Date().toISOString()
         };
 
-        const newUsers = [...users, newUser];
+        const newUsers = [...usersList, newUser];
         saveUsers(newUsers);
         return true;
     };
 
-    const updateUser = (userId, updates) => {
+    const updateUser = async (userId, updates) => {
         if (currentUser?.role !== 'admin') return false;
+
+        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+        const usersList = storedUsers ? JSON.parse(storedUsers) : [];
 
         if (updates.role) {
             updates.avatar = getAvatarByRole(updates.role);
         }
 
-        const newUsers = users.map(u =>
+        const newUsers = usersList.map(u =>
             u.id === userId ? { ...u, ...updates } : u
         );
         saveUsers(newUsers);
         return true;
     };
 
-    const deleteUser = (userId) => {
+    const deleteUser = async (userId) => {
         if (currentUser?.role !== 'admin') return false;
 
-        const userToDelete = users.find(u => u.id === userId);
+        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+        const usersList = storedUsers ? JSON.parse(storedUsers) : [];
+
+        const userToDelete = usersList.find(u => u.id === userId);
         if (!userToDelete || userToDelete.role === 'admin') return false;
 
-        const newUsers = users.filter(u => u.id !== userId);
+        const newUsers = usersList.filter(u => u.id !== userId);
         saveUsers(newUsers);
         return true;
     };
