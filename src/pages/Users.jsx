@@ -45,7 +45,7 @@ function Users() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
         if (!formData.name || !formData.username) {
@@ -58,46 +58,57 @@ function Users() {
             return;
         }
 
-        if (editingUser) {
-            const updateData = {
-                name: formData.name,
-                username: formData.username,
-                role: formData.role
-            };
-            if (formData.password) {
-                updateData.password = formData.password;
+        try {
+            if (editingUser) {
+                const updateData = {
+                    name: formData.name,
+                    username: formData.username,
+                    role: formData.role
+                };
+                if (formData.password) {
+                    updateData.password = formData.password;
+                }
+                const success = await updateUser(editingUser.id, updateData);
+                if (!success) {
+                    alert('Ошибка при обновлении пользователя');
+                    return;
+                }
+            } else {
+                const success = await addUser(formData);
+                if (!success) {
+                    alert('Ошибка при добавлении пользователя. Возможно, логин уже занят.');
+                    return;
+                }
             }
-            const result = updateUser(editingUser.id, updateData);
-            if (!result.success) {
-                alert(result.error);
-                return;
-            }
-        } else {
-            const result = addUser(formData);
-            if (!result.success) {
-                alert(result.error);
-                return;
-            }
+            handleCloseModal();
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Произошла ошибка');
         }
-
-        handleCloseModal();
     };
 
-    const handleDelete = (user) => {
+    const handleDelete = async (user) => {
         if (user.role === 'admin') {
             alert('Нельзя удалить администратора');
             return;
         }
         if (confirm(`Удалить пользователя ${user.name}?`)) {
-            const result = deleteUser(user.id);
-            if (!result.success) {
-                alert(result.error);
+            try {
+                const success = await deleteUser(user.id);
+                if (!success) {
+                    alert('Ошибка при удалении');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Произошла ошибка');
             }
         }
     };
 
-    const employees = users.filter(u => u.role !== 'admin');
-    const admins = users.filter(u => u.role === 'admin');
+    // Защита от undefined
+    const usersList = users || [];
+    const employees = usersList.filter(u => u.role !== 'admin');
+    const admins = usersList.filter(u => u.role === 'admin');
 
     return (
         <div className="fade-in">
