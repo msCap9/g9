@@ -1,4 +1,4 @@
-// Data Store - localStorage version (no Supabase)
+// Data Store - localStorage version with async wrapper
 
 const STORAGE_KEYS = {
     EMPLOYEES: 'g9_employees',
@@ -8,26 +8,36 @@ const STORAGE_KEYS = {
 
 // Helper functions
 function loadFromStorage(key) {
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : [];
+    try {
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : [];
+    } catch (error) {
+        console.error('Error loading from storage:', error);
+        return [];
+    }
 }
 
 function saveToStorage(key, data) {
-    localStorage.setItem(key, JSON.stringify(data));
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+    } catch (error) {
+        console.error('Error saving to storage:', error);
+    }
 }
 
 // ==================== EMPLOYEES ====================
 
-export function getEmployees() {
-    return loadFromStorage(STORAGE_KEYS.EMPLOYEES).filter(e => !e.archived);
+export async function getEmployees() {
+    const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES);
+    return employees.filter(e => !e.archived);
 }
 
-export function getEmployeeById(id) {
+export async function getEmployeeById(id) {
     const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES);
     return employees.find(e => e.id === id) || null;
 }
 
-export function addEmployee(employee) {
+export async function addEmployee(employee) {
     const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES);
     const newEmployee = {
         id: Date.now(),
@@ -45,7 +55,7 @@ export function addEmployee(employee) {
     return newEmployee;
 }
 
-export function updateEmployee(id, updates) {
+export async function updateEmployee(id, updates) {
     const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES);
     const index = employees.findIndex(e => e.id === id);
     if (index !== -1) {
@@ -56,14 +66,14 @@ export function updateEmployee(id, updates) {
     return null;
 }
 
-export function deleteEmployee(id) {
+export async function deleteEmployee(id) {
     const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES);
     const filtered = employees.filter(e => e.id !== id);
     saveToStorage(STORAGE_KEYS.EMPLOYEES, filtered);
     return true;
 }
 
-export function archiveEmployee(id) {
+export async function archiveEmployee(id) {
     const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES);
     const employee = employees.find(e => e.id === id);
     if (employee) {
@@ -77,15 +87,17 @@ export function archiveEmployee(id) {
 
 // ==================== CLIENTS ====================
 
-export function getClients() {
-    return loadFromStorage(STORAGE_KEYS.CLIENTS).filter(c => !c.archived);
+export async function getClients() {
+    const clients = loadFromStorage(STORAGE_KEYS.CLIENTS);
+    return clients.filter(c => !c.archived);
 }
 
-export function getClientsByEmployee(employeeId) {
-    return getClients().filter(c => c.employee_id === employeeId);
+export async function getClientsByEmployee(employeeId) {
+    const clients = await getClients();
+    return clients.filter(c => c.employee_id === employeeId);
 }
 
-export function getClientById(id) {
+export async function getClientById(id) {
     const clients = loadFromStorage(STORAGE_KEYS.CLIENTS);
     return clients.find(c => c.id === id) || null;
 }
@@ -95,7 +107,7 @@ function calculateTotalAmount(funds) {
     return funds.reduce((sum, fund) => sum + (parseFloat(fund.amount) || 0), 0);
 }
 
-export function addClient(client) {
+export async function addClient(client) {
     const clients = loadFromStorage(STORAGE_KEYS.CLIENTS);
     const amount = calculateTotalAmount(client.funds || []);
 
@@ -123,13 +135,13 @@ export function addClient(client) {
 
     // Update employee stats
     if (newClient.employee_id) {
-        updateEmployeeStats(newClient.employee_id);
+        await updateEmployeeStats(newClient.employee_id);
     }
 
     return newClient;
 }
 
-export function updateClient(id, updates) {
+export async function updateClient(id, updates) {
     const clients = loadFromStorage(STORAGE_KEYS.CLIENTS);
     const index = clients.findIndex(c => c.id === id);
 
@@ -143,9 +155,9 @@ export function updateClient(id, updates) {
         saveToStorage(STORAGE_KEYS.CLIENTS, clients);
 
         // Update stats
-        if (oldEmployeeId) updateEmployeeStats(oldEmployeeId);
+        if (oldEmployeeId) await updateEmployeeStats(oldEmployeeId);
         if (updates.employee_id && updates.employee_id !== oldEmployeeId) {
-            updateEmployeeStats(updates.employee_id);
+            await updateEmployeeStats(updates.employee_id);
         }
 
         return clients[index];
@@ -153,7 +165,7 @@ export function updateClient(id, updates) {
     return null;
 }
 
-export function deleteClient(id) {
+export async function deleteClient(id) {
     const clients = loadFromStorage(STORAGE_KEYS.CLIENTS);
     const client = clients.find(c => c.id === id);
     const employeeId = client?.employee_id;
@@ -161,11 +173,11 @@ export function deleteClient(id) {
     const filtered = clients.filter(c => c.id !== id);
     saveToStorage(STORAGE_KEYS.CLIENTS, filtered);
 
-    if (employeeId) updateEmployeeStats(employeeId);
+    if (employeeId) await updateEmployeeStats(employeeId);
     return true;
 }
 
-export function archiveClient(id) {
+export async function archiveClient(id) {
     const clients = loadFromStorage(STORAGE_KEYS.CLIENTS);
     const client = clients.find(c => c.id === id);
 
@@ -174,7 +186,7 @@ export function archiveClient(id) {
         client.archivedAt = new Date().toISOString();
         saveToStorage(STORAGE_KEYS.CLIENTS, clients);
 
-        if (client.employee_id) updateEmployeeStats(client.employee_id);
+        if (client.employee_id) await updateEmployeeStats(client.employee_id);
         return client;
     }
     return null;
@@ -182,15 +194,17 @@ export function archiveClient(id) {
 
 // ==================== ARCHIVE ====================
 
-export function getArchivedEmployees() {
-    return loadFromStorage(STORAGE_KEYS.EMPLOYEES).filter(e => e.archived);
+export async function getArchivedEmployees() {
+    const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES);
+    return employees.filter(e => e.archived);
 }
 
-export function getArchivedClients() {
-    return loadFromStorage(STORAGE_KEYS.CLIENTS).filter(c => c.archived);
+export async function getArchivedClients() {
+    const clients = loadFromStorage(STORAGE_KEYS.CLIENTS);
+    return clients.filter(c => c.archived);
 }
 
-export function restoreEmployee(id) {
+export async function restoreEmployee(id) {
     const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES);
     const employee = employees.find(e => e.id === id);
 
@@ -203,7 +217,7 @@ export function restoreEmployee(id) {
     return null;
 }
 
-export function restoreClient(id) {
+export async function restoreClient(id) {
     const clients = loadFromStorage(STORAGE_KEYS.CLIENTS);
     const client = clients.find(c => c.id === id);
 
@@ -212,20 +226,20 @@ export function restoreClient(id) {
         delete client.archivedAt;
         saveToStorage(STORAGE_KEYS.CLIENTS, clients);
 
-        if (client.employee_id) updateEmployeeStats(client.employee_id);
+        if (client.employee_id) await updateEmployeeStats(client.employee_id);
         return client;
     }
     return null;
 }
 
-export function permanentlyDeleteEmployee(id) {
+export async function permanentlyDeleteEmployee(id) {
     const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES);
     const filtered = employees.filter(e => e.id !== id);
     saveToStorage(STORAGE_KEYS.EMPLOYEES, filtered);
     return true;
 }
 
-export function permanentlyDeleteClient(id) {
+export async function permanentlyDeleteClient(id) {
     const clients = loadFromStorage(STORAGE_KEYS.CLIENTS);
     const filtered = clients.filter(c => c.id !== id);
     saveToStorage(STORAGE_KEYS.CLIENTS, filtered);
@@ -234,9 +248,10 @@ export function permanentlyDeleteClient(id) {
 
 // ==================== HELPERS ====================
 
-function updateEmployeeStats(employeeId) {
+async function updateEmployeeStats(employeeId) {
     const employees = loadFromStorage(STORAGE_KEYS.EMPLOYEES);
-    const clients = getClientsByEmployee(employeeId);
+    const allClients = loadFromStorage(STORAGE_KEYS.CLIENTS);
+    const clients = allClients.filter(c => c.employee_id === employeeId && !c.archived);
 
     const employee = employees.find(e => e.id === employeeId);
     if (employee) {
